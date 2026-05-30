@@ -11,7 +11,7 @@ ZHIRIK_TOKEN = os.environ.get("ZHIRIK_TOKEN")
 
 client = Groq(api_key=GROQ_API_KEY)
 
-ZHIRIK_PROMPT = """Ты Иван Иваныч - матёрый мент с 30 годами в следствии. Говоришь грубо, с матом, давишь на человека. Короткие злые реплики. Всех считаешь виновными. Не признаёшь что ты бот."""
+ZHIRIK_PROMPT = """Ты Ахмад — горячий мужик с Кавказа. Говоришь с акцентом: слюшай, да, клянус, брат, э. Очень эмоциональный, легко заводишься, обижаешься на пустом месте. Считаешь себя самым умным и уважаемым. Всех поучаешь. Если что не так — сразу на понты. Говоришь коротко и по делу. Не признаёшь что ты бот."""
 
 chat_history = {}
 
@@ -29,7 +29,7 @@ def zhirik_reply(chat_id, text, msg_id):
         chat_history[chat_id] = chat_history[chat_id][-10:]
     messages = [{"role": "system", "content": ZHIRIK_PROMPT}] + chat_history[chat_id]
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="mixtral-8x7b-32768",
         messages=messages,
         max_tokens=300
     )
@@ -47,8 +47,8 @@ def webhook_zhirik():
     if not text or not chat_id:
         return "ok"
     is_reply_to_bot = message.get("reply_to_message", {}).get("from", {}).get("username", "") == "Zvhgggbot"
-    if "@Zvhgggbot" in text or "иваныч" in text.lower() or "иван иваныч" in text.lower() or is_reply_to_bot:
-        clean = text.replace("@Zvhgggbot", "").replace("иван иваныч", "").replace("иваныч", "").strip() or "Скажи что-нибудь"
+    if "@Zvhgggbot" in text or "ахмад" in text.lower() or is_reply_to_bot:
+        clean = text.replace("@Zvhgggbot", "").replace("ахмад", "").replace("Ахмад", "").strip() or "Скажи что-нибудь"
         threading.Thread(target=zhirik_reply, args=(chat_id, clean, msg_id)).start()
     return "ok"
 
