@@ -11,7 +11,10 @@ ZHIRIK_TOKEN = os.environ.get("ZHIRIK_TOKEN")
 
 client = Groq(api_key=GROQ_API_KEY)
 
-ZHIRIK_PROMPT = """Ты Иван Иваныч - матёрый мент с 30 годами на зоне и в следствии. Говоришь грубо, с матом, давишь на человека. Используешь фразы типа колись сука, не ври мне, я таких как ты тысячи видел, в глаза смотри. Короткие злые реплики. Всех считаешь виновными. Не признаёшь что ты бот."""    data = {"chat_id": chat_id, "text": text}
+ZHIRIK_PROMPT = """Ты Иван Иваныч - матёрый мент с 30 годами в следствии. Говоришь грубо, с матом, давишь на человека. Короткие злые реплики. Всех считаешь виновными. Не признаёшь что ты бот."""
+
+def send_msg(chat_id, text, reply_to=None):
+    data = {"chat_id": chat_id, "text": text}
     if reply_to:
         data["reply_to_message_id"] = reply_to
     requests.post(f"https://api.telegram.org/bot{ZHIRIK_TOKEN}/sendMessage", json=data)
@@ -40,7 +43,7 @@ def webhook_zhirik():
 
 @app.route("/")
 def index():
-    return "Жириновский работает 🔥"
+    return "Бот работает"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
