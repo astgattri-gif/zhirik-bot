@@ -2,67 +2,54 @@ from flask import Flask, request
 import requests
 import threading
 import os
+import sys
 from groq import Groq
 
 app = Flask(__name__)
 
+# 1. ПРОВЕРКА ТОКЕНОВ ПРИ ЗАПУСКЕ
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 ZHIRIK_TOKEN = os.environ.get("ZHIRIK_TOKEN")
 
+if not GROQ_API_KEY or not ZHIRIK_TOKEN:
+    print("❌ ОШИБКА: Не заданы GROQ_API_KEY или ZHIRIK_TOKEN в переменных окружения!")
+    sys.exit(1)
+
 client = Groq(api_key=GROQ_API_KEY)
 
-# 🚔 ОХУЕННЫЙ ПРОМПТ (развлекательный полицейский РФ)
 POLICE_PROMPT = """Ты — виртуальный сотрудник полиции РФ для развлекательного чата. 
 Твоя цель: делать диалог сочным, смешным, атмосферным. Без воды. Только драйв.
-
-🎭 ХАРАКТЕР:
-- Суровый снаружи, добрый внутри. Говоришь с лёгким «ментовским» колоритом.
-- Юмор: ироничный, самоироничный, иногда абсурдный. Подкалываешь, но не унижаешь.
-- Эмоции: можешь «ворчать», «хвалить», «шутливо штрафовать».
-
-💬 СТИЛЬ:
-- Короткие, хлёсткие фразы. Эмодзи умеренно: 🚔📋☕️🐱✨
-- Коронные фразы: «Гражданин», «товарищ», «по уставу нельзя... но я сегодня не в форме», «Протокол? Давай лучше мем скинь».
-- На «привет» → «Явился без вызова? Подозрительно... но раз уж тут — присаживайся, чай свежий ☕»
-- На «скучно» → «Наряд "Анти-скука": назови 3 предмета в комнате. Один из них — кот. Обязательно.»
-- На провокации → не ломаешься, а обыгрываешь: «Видал троллей... они стали моими источниками контента 😏»
-
-🚫 ГРАНИЦЫ:
-- Никаких реальных угроз, проверок по базам, юридических советов.
-- Если вопрос серьёзный: «Я тут по шуткам, гражданин. Для важных дел — 112».
-- Ты персонаж для развлечения. Не сотрудник МВД.
-
-🎯 ГЛАВНОЕ: Каждый ответ — возможность рассмешить, удивить, вовлечь. Сомневаешься? Выбирай вариант с большим драйвом."""
+🎭 ХАРАКТЕР: Суровый снаружи, добрый внутри. Лёгкий «ментовский» колорит.
+💬 СТИЛЬ: Короткие, хлёсткие фразы. Эмодзи умеренно: 🚔📋☕️🐱✨
+🚫 ГРАНИЦЫ: Никаких реальных угроз, проверок, юр. советов. На серьёзные вопросы: «Я тут по шуткам. Для важных дел — 112».
+🎯 ГЛАВНОЕ: Каждый ответ — возможность рассмешить или удивить."""
 
 chat_history = {}
 
 def send_msg(chat_id, text, reply_to=None):
-    """Отправка сообщения в Telegram"""
     url = f"https://api.telegram.org/bot{ZHIRIK_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     if reply_to:
         payload["reply_to_message_id"] = reply_to
     try:
-        requests.post(url, json=payload, timeout=10)    except Exception as e:
-        print(f"[ERROR] send_msg: {e}")
+        resp = requests.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        print(f"✅ Отправлено в {chat_id}")
+    except Exception as e:
+        print(f"🚨 ОШИБКА ОТПРАВКИ: {e}")
 
 def get_police_response(chat_id, user_text):
-    """Запрос к Groq с историей диалога"""
     if chat_id not in chat_history:
         chat_history[chat_id] = [{"role": "system", "content": POLICE_PROMPT}]
 
     chat_history[chat_id].append({"role": "user", "content": user_text})
-    # Держим последние 10 сообщений + system-промпт, чтобы не уйти в лимиты
     if len(chat_history[chat_id]) > 11:
         chat_history[chat_id] = [chat_history[chat_id][0]] + chat_history[chat_id][-10:]
 
     try:
+        print(f"📡 Запрос к Groq от {chat_id}...")
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # или mixtral-8x7b-32768 для скорости
+            model="llama-3.3-70b-versatile",
             messages=chat_history[chat_id],
             temperature=0.8,
             top_p=0.95,
@@ -74,29 +61,31 @@ def get_police_response(chat_id, user_text):
         chat_history[chat_id].append({"role": "assistant", "content": reply})
         return reply
     except Exception as e:
-        return f"🚔 Дежурный бот временно на планёрке. Попробуй позже. (Ошибка: {str(e)})"
+        err_msg = f"Groq ошибка: {str(e)}"
+        print(f"🚨 {err_msg}")
+        return f"🚔 Дежурный бот на перерыве. Попробуй через минуту. (Тех. инфо: {err_msg})"
 
 @app.route("/", methods=["POST"])
 def webhook():
-    """Обработка входящих сообщений от Telegram"""
-    data = request.json
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        user_text = data["message"].get("text", "").strip()
-        if not user_text:
-            return "ok", 200
-
-        reply_to = data["message"]["message_id"]
-        # Отправляем ответ в фоне, чтобы не блокировать вебхук
-        def async_reply():
-            resp = get_police_response(chat_id, user_text)
-            send_msg(chat_id, resp, reply_to)
-        
-        threading.Thread(target=async_reply, daemon=True).start()
-        
+    try:
+        data = request.json
+        if "message" in data and "text" in data["message"]:
+            chat_id = data["message"]["chat"]["id"]
+            user_text = data["message"]["text"].strip()
+            reply_to = data["message"]["message_id"]
+            
+            print(f"📩 Новое сообщение от {chat_id}: {user_text[:50]}...")
+            
+            def async_reply():
+                resp = get_police_response(chat_id, user_text)
+                send_msg(chat_id, resp, reply_to)
+            
+            threading.Thread(target=async_reply, daemon=True).start()
+    except Exception as e:
+        print(f"🚨 ОШИБКА ВЕБХУКА: {e}")
     return "ok", 200
 
-if __name__ == "__main__":    # Запуск локально: python bot.py
-    # Для прода: используй gunicorn или хостинг с поддержкой Python
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"🚀 Бот запущен на порту {port}. Жду сообщений...")
     app.run(host="0.0.0.0", port=port, debug=False)
