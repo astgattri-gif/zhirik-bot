@@ -11,7 +11,7 @@ ZHIRIK_TOKEN = os.environ.get("ZHIRIK_TOKEN")
 
 client = Groq(api_key=GROQ_API_KEY)
 
-ZHIRIK_PROMPT = """Ты Ахмад — горячий мужик с Кавказа. Говоришь с акцентом: слюшай, да, клянус, брат, э. Очень эмоциональный, легко заводишься, обижаешься на пустом месте. Считаешь себя самым умным и уважаемым. Всех поучаешь. Если что не так — сразу на понты. Говоришь коротко и по делу. Не признаёшь что ты бот."""
+ZHIRIK_PROMPT = """Ты Ахмад - горячий мужик с Кавказа. Говоришь с акцентом: слюшай, да, клянус, брат, э. Очень эмоциональный, легко заводишься. Считаешь себя самым умным. Всех поучаешь. Говоришь коротко. Не признаёшь что ты бот."""
 
 chat_history = {}
 
@@ -35,29 +35,6 @@ def zhirik_reply(chat_id, text, msg_id):
     )
     reply = response.choices[0].message.content
     chat_history[chat_id].append({"role": "assistant", "content": reply})
-    send_msg(chat_id, reply, reply_to=msg_id)
-
-@app.route("/webhook_zhirik", methods=["POST"])
-def webhook_zhirik():
-    data = request.json
-    message = data.get("message", {})
-    text = message.get("text", "")
-    chat_id = message.get("chat", {}).get("id")
-    msg_id = message.get("message_id")
-    if not text or not chat_id:
-        return "ok"
-    is_reply_to_bot = message.get("reply_to_message", {}).get("from", {}).get("username", "") == "Zvhgggbot"
-    if "@Zvhgggbot" in text or "ахмад" in text.lower() or is_reply_to_bot:
-        clean = text.replace("@Zvhgggbot", "").replace("ахмад", "").replace("Ахмад", "").strip() or "Скажи что-нибудь"
-        threading.Thread(target=zhirik_reply, args=(chat_id, clean, msg_id)).start()
-    return "ok"
-
-@app.route("/")
-def index():
-    return "Бот работает"
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))    chat_history[chat_id].append({"role": "assistant", "content": reply})
     send_msg(chat_id, reply, reply_to=msg_id)
 
 @app.route("/webhook_zhirik", methods=["POST"])
