@@ -1,5 +1,5 @@
 from flask import Flask, request
-import os, requests, threading, time
+import os, requests, threading, time, random
 from groq import Groq
 
 app = Flask(__name__)
@@ -22,7 +22,7 @@ ZHIRIK_PROMPT = """Ты — сотрудник полиции РФ, мент, в
 На провокации: обыгрываешь. Границы: нет. Главное: реалистично."""
 
 chat_history = {}
-last_response_time = {}
+active_chats = set()  # Чаты для проактивных сообщений
 
 def send_msg(chat_id, text, reply_to=None):
     try:
@@ -47,11 +47,28 @@ def get_response(chat_id, user_text):
             temperature=0.7,
             max_tokens=768
         )
-        reply = resp.choices[0].message.content
-        chat_history[chat_id].append({"role": "assistant", "content": reply})
+        reply = resp.choices[0].message.content        chat_history[chat_id].append({"role": "assistant", "content": reply})
         return reply
     except Exception as e:
         return f"🚔 Бот курит. ({str(e)[:30]})"
+
+# 🔥 Проактивный цикл: пишет сам раз в ~час
+def proactive_loop():
+    phrases = [
+        "Ну что, уважаемый, живой? А то я уже протокол на пропажу человека составил.",
+        "Товарищ, ты чего пропал? Я тут без дела скучаю, бутылка стынет.",
+        "Гражданин, проверка связи. Отзовись, а то в розыск подам.",
+        "Слушай, а ты ещё тут? А то я уже думал, тебя коллеги увезли.",
+        "Профилактический обход. Все живы? Никто не сбежал?",
+        "Эй, гражданин! Я тут рапорт пишу, а тебя всё нет. Ты где?"
+    ]
+    while True:
+        wait = random.uniform(50 * 60, 70 * 60)  # 50-70 минут
+        time.sleep(wait)
+        if not active_chats:
+            continue
+        chat_id = random.choice(list(active_chats))
+        send_msg(chat_id, random.choice(phrases))
 
 @app.route("/", methods=["POST"])
 def webhook():
@@ -62,26 +79,16 @@ def webhook():
             chat_id = msg["chat"]["id"]
             user_text = msg["text"].strip()
             msg_id = msg["message_id"]
-            current_time = time.time()
 
+            active_chats.add(chat_id)  # Запоминаем чат для проактивных сообщений
             is_ment = "мент" in user_text.lower()
-            last_time = last_response_time.get(chat_id, 0)
-            import random
-            cooldown = random.uniform(25 * 60, 35 * 60)
-            time_passed = current_time - last_time
-
-            print(f"📥 [{chat_id}] '{user_text[:30]}' | мент={is_ment} | {time_passed/60:.1f}мин")
 
             def reply():
-                if is_ment or time_passed >= cooldown or last_time == 0:
-                    reason = "ТРИГГЕР" if is_ment else "ТАЙМЕР"
-                    print(f"⚡ {reason} -> ОТВЕЧАЮ")
+                if is_ment:  # Отвечаем ТОЛЬКО на "мент"
+                    print(f"⚡ ТРИГГЕР -> ОТВЕЧАЮ")
                     resp = get_response(chat_id, user_text)
                     send_msg(chat_id, resp, msg_id)
-                    last_response_time[chat_id] = time.time()
-                else:
-                    rem = int(cooldown - time_passed)
-                    print(f"⏸️ КУЛДАУН: {rem//60}мин")
+                # Обычные сообщения игнорируем
 
             threading.Thread(target=reply, daemon=True).start()
     except Exception as e:
@@ -89,10 +96,11 @@ def webhook():
     return "ok", 200
 
 @app.route("/health")
-def health():
-    return "🚔 Bot is running", 200
+def health():    return "🚔 Bot is running", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"🚀 Бот запущен на порту {port}")
+    # Запускаем проактивный цикл в фоне
+    threading.Thread(target=proactive_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=port, threaded=True)
