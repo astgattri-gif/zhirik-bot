@@ -64,24 +64,52 @@ try:
     print("🗑️ Вебхук удалён. Режим Polling активен.")
 except: pass
 
-print("🚀 Бот запущен. Жду сообщений... (нажми Ctrl+C для выхода)")
+print("🚀 Ожидание сообщений... (Ctrl+C для выхода)")
 last_update_id = 0
 
 while True:
     try:
         url = f"https://api.telegram.org/bot{ZHIRIK_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
         data = requests.get(url, timeout=35).json()
+
         if data.get("ok") and data.get("result"):
             for update in data["result"]:
                 last_update_id = update["update_id"]
                 msg = update.get("message")
-                if msg and "text" in msg:
-                    chat_id = msg["chat"]["id"]
-                    user_text = msg["text"].strip()
-                    msg_id = msg["message_id"]
-                    print(f"📩 [{chat_id}] {user_text}")
+                if not msg or "text" not in msg:
+                    continue
+
+                if msg["chat"].get("type") != "private":
+                    continue
+
+                chat_id = msg["chat"]["id"]
+                user_text = msg["text"].strip()
+                msg_id = msg["message_id"]
+                current_time = time.time()
+
+                last_time = last_response_time.get(chat_id, 0)
+                cooldown = random.uniform(25 * 60, 35 * 60)  # 25-35 минут
+                is_ment = "мент" in user_text.lower()
+
+                # 1. Вызов "мент" -> отвечаем сразу
+                if is_ment:
+                    print(f"📩 [{chat_id}] ТРИГГЕР -> ОТВЕЧАЮ: {user_text}")
                     reply = get_response(chat_id, user_text)
                     send_msg(chat_id, reply, msg_id)
+                    last_response_time[chat_id] = current_time
+
+                # 2. Без "мент" -> отвечаем только если прошло ~полчаса
+                elif current_time - last_time >= cooldown:
+                    print(f"📩 [{chat_id}] ТАЙМЕР -> ОТВЕЧАЮ: {user_text}")
+                    reply = get_response(chat_id, user_text)
+                    send_msg(chat_id, reply, msg_id)
+                    last_response_time[chat_id] = current_time
+
+                # 3. Остальное пропускаем
+                else:
+                    remaining = int(cooldown - (current_time - last_time))
+                    print(f"⏸ [{chat_id}] Пропуск (до ответа ~{remaining // 60} мин {remaining % 60} сек)")
+
     except Exception as e:
         print(f"⚠️ Ошибка цикла: {e}")
         time.sleep(2)
