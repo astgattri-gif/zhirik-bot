@@ -46,8 +46,8 @@ def webhook_zhirik():
     msg_id = message.get("message_id")
     if not text or not chat_id:
         return "ok"
-    if "@Zvhgggbot" in text:
-        clean = text.replace("@Zvhgggbot", "").strip() or "Скажи что-нибудь"
+    if "@Zvhgggbot" in text or "иваныч" in text.lower() or "иван иваныч" in text.lower():
+        clean = text.replace("@Zvhgggbot", "").replace("иван иваныч", "").replace("иваныч", "").strip() or "Скажи что-нибудь"
         threading.Thread(target=zhirik_reply, args=(chat_id, clean, msg_id)).start()
     return "ok"
 
