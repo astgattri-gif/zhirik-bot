@@ -29,12 +29,35 @@ def zhirik_reply(chat_id, text, msg_id):
         chat_history[chat_id] = chat_history[chat_id][-10:]
     messages = [{"role": "system", "content": ZHIRIK_PROMPT}] + chat_history[chat_id]
     response = client.chat.completions.create(
-        model="mixtral-8x7b-32768",
+        model="llama-3.3-70b-versatile",
         messages=messages,
         max_tokens=300
     )
     reply = response.choices[0].message.content
     chat_history[chat_id].append({"role": "assistant", "content": reply})
+    send_msg(chat_id, reply, reply_to=msg_id)
+
+@app.route("/webhook_zhirik", methods=["POST"])
+def webhook_zhirik():
+    data = request.json
+    message = data.get("message", {})
+    text = message.get("text", "")
+    chat_id = message.get("chat", {}).get("id")
+    msg_id = message.get("message_id")
+    if not text or not chat_id:
+        return "ok"
+    is_reply_to_bot = message.get("reply_to_message", {}).get("from", {}).get("username", "") == "Zvhgggbot"
+    if "@Zvhgggbot" in text or "ахмад" in text.lower() or is_reply_to_bot:
+        clean = text.replace("@Zvhgggbot", "").replace("ахмад", "").replace("Ахмад", "").strip() or "Скажи что-нибудь"
+        threading.Thread(target=zhirik_reply, args=(chat_id, clean, msg_id)).start()
+    return "ok"
+
+@app.route("/")
+def index():
+    return "Бот работает"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))    chat_history[chat_id].append({"role": "assistant", "content": reply})
     send_msg(chat_id, reply, reply_to=msg_id)
 
 @app.route("/webhook_zhirik", methods=["POST"])
