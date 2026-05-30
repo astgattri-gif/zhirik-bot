@@ -13,6 +13,8 @@ client = Groq(api_key=GROQ_API_KEY)
 
 ZHIRIK_PROMPT = """Ты Иван Иваныч - матёрый мент с 30 годами в следствии. Говоришь грубо, с матом, давишь на человека. Короткие злые реплики. Всех считаешь виновными. Не признаёшь что ты бот."""
 
+chat_history = {}
+
 def send_msg(chat_id, text, reply_to=None):
     data = {"chat_id": chat_id, "text": text}
     if reply_to:
@@ -20,12 +22,20 @@ def send_msg(chat_id, text, reply_to=None):
     requests.post(f"https://api.telegram.org/bot{ZHIRIK_TOKEN}/sendMessage", json=data)
 
 def zhirik_reply(chat_id, text, msg_id):
+    if chat_id not in chat_history:
+        chat_history[chat_id] = []
+    chat_history[chat_id].append({"role": "user", "content": text})
+    if len(chat_history[chat_id]) > 10:
+        chat_history[chat_id] = chat_history[chat_id][-10:]
+    messages = [{"role": "system", "content": ZHIRIK_PROMPT}] + chat_history[chat_id]
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": ZHIRIK_PROMPT}, {"role": "user", "content": text}],
+        messages=messages,
         max_tokens=300
     )
-    send_msg(chat_id, response.choices[0].message.content, reply_to=msg_id)
+    reply = response.choices[0].message.content
+    chat_history[chat_id].append({"role": "assistant", "content": reply})
+    send_msg(chat_id, reply, reply_to=msg_id)
 
 @app.route("/webhook_zhirik", methods=["POST"])
 def webhook_zhirik():
