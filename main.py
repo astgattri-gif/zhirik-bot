@@ -65,8 +65,8 @@ def webhook_zhirik():
     if not text or not chat_id:
         return "ok"
     is_reply_to_bot = message.get("reply_to_message", {}).get("from", {}).get("username", "") == "Zvhgggbot"
-    if "@Zvhgggbot" in text or "вика" in text.lower() or is_reply_to_bot:
-        clean = text.replace("@Zvhgggbot", "").replace("вика", "").replace("Ахмад", "").strip() or "Скажи что-нибудь"
+    if "@Zvhgggbot" in text or "разум" in text.lower() or is_reply_to_bot:
+        clean = text.replace("@Zvhgggbot", "").replace("разум", "").replace("разум", "").strip() or "Скажи что-нибудь"
         threading.Thread(target=zhirik_reply, args=(chat_id, clean, msg_id)).start()
     return "ok"
 
